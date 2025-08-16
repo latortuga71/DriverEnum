@@ -61,6 +61,8 @@ VOID RtlInitUnicodeString( PUNICODE_STRING64 DestinationString, PWSTR SourceStri
 extern "C" NTSTATUS NtOpenDirectoryObject(PHANDLE, ACCESS_MASK, POBJECT_ATTRIBUTES);
 extern "C" NTSTATUS NtQueryDirectoryObject(HANDLE, PVOID, ULONG, BOOLEAN, BOOLEAN, PULONG, PULONG);
 extern "C" NTSTATUS NtClose(HANDLE);
+extern "C" NTSTATUS NtOpenSymbolicLinkObject(HANDLE, ACCESS_MASK, POBJECT_ATTRIBUTES);
+extern "C" NTSTATUS NtQuerySymbolicLinkObject(HANDLE, PUNICODE_STRING64, PULONG);
 
 int Error(const char* msg) {
     printf("%s (%u)\n", msg, GetLastError());
@@ -90,6 +92,24 @@ BOOLEAN CheckPerm(WCHAR* name) {
 	}
 }
 
+std::wstring GetSymbolicLinkTarget(WCHAR* symname) {
+	HANDLE handle;
+	UNICODE_STRING64 name;
+	RtlInitUnicodeString(&name, symname);
+	OBJECT_ATTRIBUTES objAttr;
+	InitializeObjectAttributes(&objAttr, &name, 0, nullptr, nullptr);
+	NTSTATUS status = NtOpenSymbolicLinkObject(&handle, GENERIC_READ, &objAttr);
+	if (!NT_SUCCESS(status)) {
+		return L"";
+	}
+	WCHAR buffer[512];
+	UNICODE_STRING64 target;
+	RtlInitUnicodeString(&target, buffer);
+	target.MaximumLength = sizeof(buffer);
+	status = NtQuerySymbolicLinkObject(handle, &target, nullptr);
+	NtClose(handle);
+	return buffer;
+}
 
 void EnumerateDrivers() {
 	HANDLE handle;
@@ -114,6 +134,12 @@ void EnumerateDrivers() {
 		}
 		first = false;
 		for (ULONG i = 0; i < index - start; i++) {
+			std::wstring type_name = (WCHAR*)data[i].TypeName.Buffer;
+			std::wstring name = (WCHAR*)data[i].Name.Buffer;
+			if (type_name == L"SymbolicLink") {
+				std::wstring target = GetSymbolicLinkTarget((PWSTR)name.c_str());
+				printf("Symbolic Link %ws -> %ws\n", (WCHAR*)data[i].Name.Buffer, name.c_str());
+			}
 			if (data[i].Name.Length > sizeof(WCHAR)) {
 				//printf("DEBUG: %ws\n", (wchar_t*)data[i].Name.Buffer);
 				CheckPerm((WCHAR*)data[i].Name.Buffer);
