@@ -154,6 +154,27 @@ void EnumerateDrivers() {
 	return;
 }
 
+
+VOID EnumFromFile(const char* path) {
+	memset(buffer, 0, sizeof(buffer));
+	std::ifstream ifs(path);
+	std::string line;
+	std::string string_template = "\\\\?\\GLOBALROOT\\Device\\";
+	while (std::getline(ifs, line)) {
+		std::string path = string_template + line;
+		HANDLE hDevice = CreateFileA(path.c_str(), GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_EXISTING, 0, nullptr);
+		if (hDevice == INVALID_HANDLE_VALUE) {
+			//return Error("Failed to open driver");
+			continue;
+		}
+		else {
+			std::cout << "[+] Access " << path << std::endl;
+			CloseHandle(hDevice);
+		}
+	}
+}
+
 int main(int argc, char* argv[]) {
-	EnumerateDrivers();
+	//EnumerateDrivers();
+	EnumFromFile("c:\\users\\lator\\Desktop\\driverlist.txt");
 }
